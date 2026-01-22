@@ -32,6 +32,10 @@ export async function onRequest(context) {
         let restoredFiles = 0;
         let restoredSettings = 0;
         const BATCH_SIZE = 20; // 批处理大小，并发 20
+        const errors = [];
+
+        const incomingFileCount = Object.keys(backupData.data.files).length;
+        const incomingSettingCount = Object.keys(backupData.data.settings).length;
 
         // ==================== 批量恢复文件数据 ====================
         const fileEntries = Object.entries(backupData.data.files);
@@ -55,7 +59,9 @@ export async function onRequest(context) {
                     }
                     restoredFiles++;
                 } catch (error) {
-                    console.error(`Failed to restore file ${key}:`, error);
+                    const msg = `Failed to restore file ${key}: ${error.message}`;
+                    console.error(msg);
+                    if (errors.length < 10) errors.push(msg);
                 }
             }));
         }
@@ -70,7 +76,9 @@ export async function onRequest(context) {
                     await db.put(key, value);
                     restoredSettings++;
                 } catch (error) {
-                    console.error(`Failed to restore setting ${key}:`, error);
+                    const msg = `Failed to restore setting ${key}: ${error.message}`;
+                    console.error(msg);
+                    if (errors.length < 10) errors.push(msg);
                 }
             }));
         }
@@ -81,8 +89,11 @@ export async function onRequest(context) {
             stats: {
                 restoredFiles,
                 restoredSettings,
+                incomingFileCount,
+                incomingSettingCount,
                 backupTimestamp: backupData.timestamp
-            }
+            },
+            errors: errors.length > 0 ? errors : undefined
         }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
